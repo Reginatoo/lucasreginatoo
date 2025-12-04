@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <string.h> /* Para strlen */
+#include <string.h>
 #include "geometria.h"
 #include "lista.h"
-
-/* Headers para ler os dados das formas originais */
 #include "circulo.h"
 #include "retangulo.h"
 #include "linha.h"
@@ -15,7 +13,6 @@ typedef struct {
     float x, y;
 } Ponto;
 
-/* Struct Segmento escondida aqui */
 typedef struct {
     Ponto p1;
     Ponto p2;
