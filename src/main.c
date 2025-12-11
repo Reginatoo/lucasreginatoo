@@ -3,8 +3,10 @@
 #include <string.h>
 #include "lista.h"
 #include "geo.h"
-#include "svg.h"
+#include "qry.h"
+#include "svg.h" 
 #include "forma.h"
+#include <locale.h>
 
 void extrair_nome_base(const char* path, char* nome_base) {
     const char* barra = strrchr(path, '/');
@@ -17,10 +19,12 @@ void extrair_nome_base(const char* path, char* nome_base) {
 }
 
 int main(int argc, char* argv[]) {
+    setlocale(LC_NUMERIC, "C");
     char* dir_entrada = NULL;
     char* arq_geo = NULL;
     char* dir_saida = NULL;
     char* arq_qry = NULL; 
+    char tipo_sort = 'q';
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-e") == 0) {
@@ -37,6 +41,10 @@ int main(int argc, char* argv[]) {
             i++;
             if (i < argc) arq_qry = argv[i];
         } 
+        else if (strcmp(argv[i], "-to") == 0) {
+            i++;
+            if (i < argc) tipo_sort = argv[i][0]; 
+        }
     }
 
     if (arq_geo == NULL || dir_saida == NULL) {
@@ -65,18 +73,48 @@ int main(int argc, char* argv[]) {
     char nome_base_geo[100];
     extrair_nome_base(arq_geo, nome_base_geo);
 
-    char caminho_svg_inicial[512];
+    char caminho_svg[512];
     if (dir_saida[strlen(dir_saida)-1] == '/')
-        sprintf(caminho_svg_inicial, "%s%s.svg", dir_saida, nome_base_geo);
+        sprintf(caminho_svg, "%s%s.svg", dir_saida, nome_base_geo);
     else
-        sprintf(caminho_svg_inicial, "%s/%s.svg", dir_saida, nome_base_geo);
-    
-    printf("Gerando SVG inicial: %s\n", caminho_svg_inicial);
-    desenhar_svg(caminho_svg_inicial, lista_formas);
+        sprintf(caminho_svg, "%s/%s.svg", dir_saida, nome_base_geo);
 
-    printf("Limpando memoria...\n");
-    kill_lista(lista_formas, destruir_forma_generica);
+    if (arq_qry != NULL) {
+        char caminho_qry[512];
+        if (dir_entrada != NULL) {
+            sprintf(caminho_qry, "%s/%s", dir_entrada, arq_qry);
+        } else {
+            strcpy(caminho_qry, arq_qry);
+        }
+        char nome_base_qry[100];
+        extrair_nome_base(arq_qry, nome_base_qry);
+        
+        char nome_txt[256];
+        sprintf(nome_txt, "%s-%s.txt", nome_base_geo, nome_base_qry);
+        
+        char caminho_txt[512];
+        if (dir_saida[strlen(dir_saida)-1] == '/')
+            sprintf(caminho_txt, "%s%s", dir_saida, nome_txt);
+        else
+            sprintf(caminho_txt, "%s/%s", dir_saida, nome_txt);
 
-    printf("Concluido com sucesso.\n");
+        LISTA lista_segmentos = criar_lista();
+        
+        printf(" Processando QRY: %s\n", caminho_qry);
+        ler_qry(caminho_qry, lista_formas, lista_segmentos, caminho_txt, caminho_svg, tipo_sort);
+        
+    } 
+    else {
+        printf(" Sem QRY. Gerando apenas SVG base: %s\n", caminho_svg);
+        FILE* svg = iniciar_svg(caminho_svg, lista_formas);
+        if (svg) {
+            desenhar_lista_formas(svg, lista_formas);
+            finalizar_svg(svg);
+        }
+    }
+
+    printf(" Limpando memoria...\n");
+
+    printf(" Concluido com sucesso.\n");
     return 0;
 }

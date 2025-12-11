@@ -144,7 +144,7 @@ void* get_menor_dado(Arvore t) {
     return min->info;
 }
 
-void libera_arvore(Arvore t) {
+void kill_arvore(Arvore t) {
     StArvore* tree = (StArvore*) t;
     if (tree) {
         libera_nos_rec(tree->raiz);

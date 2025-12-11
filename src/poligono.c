@@ -82,7 +82,7 @@ int get_vertice(Poligono p, int indice, float *x, float *y) {
     return 1;
 }
 
-void libera_poligono(Poligono p) {
+void kill_poligono(Poligono p) {
     StPoligono* pol = (StPoligono*) p;
     if (pol) {
         if (pol->vertices) free(pol->vertices);

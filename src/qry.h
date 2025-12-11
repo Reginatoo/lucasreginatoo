@@ -11,6 +11,6 @@
  * @param caminho_saida_txt Caminho para gerar o.txt
  * @param caminho_saida_svg Caminho para gerar o svg final
  */
-void ler_qry(char* caminho_qry, LISTA lista_formas, LISTA lista_segmentos, char* caminho_saida_txt, char* caminho_saida_svg);
+void ler_qry(char* caminho_qry, LISTA lista_formas, LISTA lista_segmentos, char* caminho_saida_txt, char* caminho_saida_svg, char tipo_sort);
 
 #endif
