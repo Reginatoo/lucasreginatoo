@@ -34,7 +34,7 @@ void ler_geo(char* caminho_geo, LISTA chao) {
             
             sscanf(linha, "c %d %f %f %f %s %s", &id, &x, &y, &r, corb, corp);
             
-            FORMA novo_circulo = cria_circulo(id, x, y, r, corb, corp);
+            form novo_circulo = cria_circulo(id, x, y, r, corb, corp);
             inserir_na_lista(chao, novo_circulo);
         }
         else if (strcmp(comando, "r") == 0) {
@@ -44,7 +44,7 @@ void ler_geo(char* caminho_geo, LISTA chao) {
             
             sscanf(linha, "r %d %f %f %f %f %s %s", &id, &x, &y, &w, &h, corb, corp);
             
-            FORMA novo_retangulo = cria_retangulo(id, x, y, w, h, corb, corp);
+            form novo_retangulo = cria_retangulo(id, x, y, w, h, corb, corp);
             inserir_na_lista(chao, novo_retangulo);
         }
         else if (strcmp(comando, "l") == 0) {
@@ -54,7 +54,7 @@ void ler_geo(char* caminho_geo, LISTA chao) {
             
             sscanf(linha, "l %d %f %f %f %f %s", &id, &x1, &y1, &x2, &y2, cor);
             
-            FORMA nova_linha = cria_linha(id, x1, y1, x2, y2, cor);
+            form nova_linha = cria_linha(id, x1, y1, x2, y2, cor);
             inserir_na_lista(chao, nova_linha);
         }
         else if (strcmp(comando, "ts") == 0) {
@@ -71,7 +71,7 @@ void ler_geo(char* caminho_geo, LISTA chao) {
             conteudo_bruto[strcspn(conteudo_bruto, "\n")] = 0;
             if (conteudo_bruto[0] == ' ') conteudo_bruto++;
 
-            FORMA novo_texto = cria_texto(id, x, y, corb, corp, a, conteudo_bruto, estilo_familia, estilo_peso, estilo_tam);
+            form novo_texto = cria_texto(id, x, y, corb, corp, a, conteudo_bruto, estilo_familia, estilo_peso, estilo_tam);
             inserir_na_lista(chao, novo_texto);
         }
     }
