@@ -3,181 +3,190 @@
 #include <math.h>
 #include "visibilidade.h"
 #include "anteparo.h"
-#include "arvore.h"
+#include "arvore.h" 
 #include "poligono.h"
 #include "lista.h" 
 
-#define MUNDO_MIN -1000.0
-#define MUNDO_MAX 15000.0
+#define PI 3.14159265359
+#define INFINITO 999999.0
+#define EPSILON 1e-9
 
-#define PI 3.1415926
-#define infinito 999999.0
+#define MIN_MUNDO -5000.0
+#define MAX_MUNDO 5000.0
+
+static double g_x_bomba;
+static double g_y_bomba;
+static double g_angulo_atual; 
 
 typedef struct {
-    float angulo;
-    int tipo; 
-    Anteparo seg;
+    double angulo;
+    int tipo;
+    Anteparo seg;   
 } Evento;
 
-static float g_x_bomba;
-static float g_y_bomba;
-static float g_angulo_atual; 
-
-float normaliza_angulo(float ang) {
-    while (ang < 0) ang += 2 * PI;
-    while (ang >= 2 * PI) ang -= 2 * PI;
-    return ang;
+double normaliza_rad(double a) {
+    while (a < 0) a += 2 * PI;
+    while (a >= 2 * PI) a -= 2 * PI;
+    return a;
 }
 
-float dist_intersecao_raio(Anteparo ant, float angulo_raio) {
-    float x1 = get_ant_x1(ant);
-    float y1 = get_ant_y1(ant);
-    float x2 = get_ant_x2(ant);
-    float y2 = get_ant_y2(ant);
-    float dx_seg = x2 - x1;
-    float dy_seg = y2 - y1;
+double get_distancia_raio(Anteparo ant, double angulo) {
+    if (ant == NULL) return INFINITO;
+
+    double x1 = get_ant_x1(ant); double y1 = get_ant_y1(ant);
+    double x2 = get_ant_x2(ant); double y2 = get_ant_y2(ant);
+
+    double dx_seg = x2 - x1;
+    double dy_seg = y2 - y1;
+    double dx_raio = cos(angulo);
+    double dy_raio = sin(angulo);
+
+    double det = dx_raio * dy_seg - dy_raio * dx_seg;
+
+    if (fabs(det) < EPSILON) return INFINITO; 
+
+    double t = ((x1 - g_x_bomba) * dy_seg - (y1 - g_y_bomba) * dx_seg) / det;
+    double u = ((x1 - g_x_bomba) * dy_raio - (y1 - g_y_bomba) * dx_raio) / det;
+
+    if (t > -EPSILON && u > -EPSILON && u < 1.0 + EPSILON) {
+        return t; 
+    }
+    return INFINITO;
+}
+
+void adiciona_ponto_interseccao(Poligono pol, Anteparo ant, double angulo) {
+    if (ant == NULL) return;
     
-    float dx_raio = cos(angulo_raio);
-    float dy_raio = sin(angulo_raio);
-    
-    float denom = dx_raio * dy_seg - dy_raio * dx_seg;
-    if (fabs(denom) < 1e-9) return infinito; 
-    float s = ((g_x_bomba - x1) * dy_seg - (g_y_bomba - y1) * dx_seg) / denom;
-    if (s < -1e-4) return infinito; 
-    
-    return s; 
+    double dist = get_distancia_raio(ant, angulo);
+    if (dist < INFINITO - 1.0) {
+        float rx = (float)(g_x_bomba + dist * cos(angulo));
+        float ry = (float)(g_y_bomba + dist * sin(angulo));
+        insere_vertice(pol, rx, ry);
+    }
 }
 
 int cmp_eventos(const void* a, const void* b) {
-    Evento* ea = (Evento*) a;
-    Evento* eb = (Evento*) b;
-
-    if (ea->angulo < eb->angulo - 1e-5) return -1;
-    if (ea->angulo > eb->angulo + 1e-5) return 1;
-    if (ea->tipo < eb->tipo) return -1;
-    if (ea->tipo > eb->tipo) return 1;
+    Evento* e1 = (Evento*)a;
+    Evento* e2 = (Evento*)b;
     
-    return 0; 
+    if (e1->angulo < e2->angulo - EPSILON) return -1;
+    if (e1->angulo > e2->angulo + EPSILON) return 1;
+    
+    return (e1->tipo - e2->tipo);
 }
 
 int cmp_segmentos_ativos(void* a, void* b) {
-    Anteparo antA = (Anteparo) a;
-    Anteparo antB = (Anteparo) b;
-    if (antA == antB) return 0;
-    
-    float distA = dist_intersecao_raio(antA, g_angulo_atual);
-    float distB = dist_intersecao_raio(antB, g_angulo_atual);
+    Anteparo s1 = (Anteparo)a;
+    Anteparo s2 = (Anteparo)b;
+    if (s1 == s2) return 0;
 
-    if (fabs(distA - distB) < 1e-5) {
-        if (get_ant_id(antA) < get_ant_id(antB)) return -1;
-        else return 1;
+    double d1 = get_distancia_raio(s1, g_angulo_atual);
+    double d2 = get_distancia_raio(s2, g_angulo_atual);
+
+    if (fabs(d1 - d2) < EPSILON) {
+        return (s1 < s2) ? -1 : 1;
     }
-    return (distA < distB) ? -1 : 1;
+    return (d1 < d2) ? -1 : 1;
 }
 
 Poligono calcular_visibilidade(float x_bomba, float y_bomba, LISTA lista_anteparos) {
-    g_x_bomba = x_bomba;
-    g_y_bomba = y_bomba;
-    Poligono pol_vis = cria_poligono();
-    LISTA lista_com_bordas = criar_lista();
+    g_x_bomba = (double)x_bomba; 
+    g_y_bomba = (double)y_bomba;
+    
+    Poligono pol = cria_poligono();
+    int n = tamanho_lista(lista_anteparos);
+    
+    int cap_max = (n + 4) * 4;
+    Evento* eventos = malloc(sizeof(Evento) * cap_max);
+    int qtd_ev = 0;
 
-    POSIC p = get_primeiro_no(lista_anteparos);
-    while(p) {
-        inserir_na_lista(lista_com_bordas, get_info_do_no(lista_anteparos, p));
-        p = get_proximo_no(lista_anteparos, p);
+    Anteparo box[4];
+    box[0] = cria_anteparo(-1, MIN_MUNDO, MIN_MUNDO, MAX_MUNDO, MIN_MUNDO);
+    box[1] = cria_anteparo(-2, MAX_MUNDO, MIN_MUNDO, MAX_MUNDO, MAX_MUNDO);
+    box[2] = cria_anteparo(-3, MAX_MUNDO, MAX_MUNDO, MIN_MUNDO, MAX_MUNDO);
+    box[3] = cria_anteparo(-4, MIN_MUNDO, MAX_MUNDO, MIN_MUNDO, MIN_MUNDO);
+
+    LISTA todos_anteparos = criar_lista(); 
+    for(int i=0; i<4; i++) inserir_na_lista(todos_anteparos, box[i]);
+    
+    if (n > 0) {
+        POSIC p = get_primeiro_no(lista_anteparos);
+        while(p) {
+            inserir_na_lista(todos_anteparos, get_info_do_no(lista_anteparos, p));
+            p = get_proximo_no(lista_anteparos, p);
+        }
     }
 
-    Anteparo b1 = cria_anteparo(-1, MUNDO_MIN, MUNDO_MIN, MUNDO_MAX, MUNDO_MIN);
-    Anteparo b2 = cria_anteparo(-2, MUNDO_MAX, MUNDO_MIN, MUNDO_MAX, MUNDO_MAX);
-    Anteparo b3 = cria_anteparo(-3, MUNDO_MAX, MUNDO_MAX, MUNDO_MIN, MUNDO_MAX);
-    Anteparo b4 = cria_anteparo(-4, MUNDO_MIN, MUNDO_MAX, MUNDO_MIN, MUNDO_MIN);
-    
-    inserir_na_lista(lista_com_bordas, b1);
-    inserir_na_lista(lista_com_bordas, b2);
-    inserir_na_lista(lista_com_bordas, b3);
-    inserir_na_lista(lista_com_bordas, b4);
-    
-    int tam_lista = tamanho_lista(lista_com_bordas); 
-    int cap_eventos = 100;
-    if (tam_lista > 0) {
-        cap_eventos = tam_lista * 2 + 10;
-    }
-
-    Evento* eventos = (Evento*) malloc(cap_eventos * sizeof(Evento));
-    int qtd_eventos = 0;
-    POSIC no = get_primeiro_no(lista_com_bordas); 
-    
+    POSIC no = get_primeiro_no(todos_anteparos);
     while (no != NULL) {
-        Anteparo ant = (Anteparo) get_info_do_no(lista_com_bordas, no);
-        
-        if (ant != NULL) {
-            float x1 = get_ant_x1(ant);
-            float y1 = get_ant_y1(ant);
-            float x2 = get_ant_x2(ant);
-            float y2 = get_ant_y2(ant);
-            
-            float ang1 = normaliza_angulo(atan2(y1 - y_bomba, x1 - x_bomba));
-            float ang2 = normaliza_angulo(atan2(y2 - y_bomba, x2 - x_bomba));
-            
-            float ang_ini = ang1;
-            float ang_fim = ang2;
-            float diff = ang_fim - ang_ini;
-            if (diff > PI) ang_ini += 2*PI; 
-            else if (diff < -PI) ang_fim += 2*PI;
-            
-            if (ang_ini > ang_fim) {
-                float temp = ang_ini; ang_ini = ang_fim; ang_fim = temp;
-            }
+        Anteparo ant = get_info_do_no(todos_anteparos, no);
+        double x1 = get_ant_x1(ant); double y1 = get_ant_y1(ant);
+        double x2 = get_ant_x2(ant); double y2 = get_ant_y2(ant);
 
-            if (qtd_eventos + 2 >= cap_eventos) {
-                cap_eventos *= 2;
-                eventos = (Evento*) realloc(eventos, cap_eventos * sizeof(Evento));
-            }
+        double ang1 = normaliza_rad(atan2(y1 - g_y_bomba, x1 - g_x_bomba));
+        double ang2 = normaliza_rad(atan2(y2 - g_y_bomba, x2 - g_x_bomba));
+
+        if (fabs(ang1 - ang2) > PI) { 
+            double menor = (ang1 < ang2) ? ang1 : ang2;
+            double maior = (ang1 > ang2) ? ang1 : ang2;
+
+            eventos[qtd_ev].angulo = maior; eventos[qtd_ev].tipo = 0; eventos[qtd_ev].seg = ant; qtd_ev++;
+            eventos[qtd_ev].angulo = 2 * PI; eventos[qtd_ev].tipo = 1; eventos[qtd_ev].seg = ant; qtd_ev++;
             
-            eventos[qtd_eventos].angulo = normaliza_angulo(ang_ini);
-            eventos[qtd_eventos].tipo = 0;
-            eventos[qtd_eventos].seg = ant;
-            qtd_eventos++;
-            
-            eventos[qtd_eventos].angulo = normaliza_angulo(ang_fim);
-            eventos[qtd_eventos].tipo = 1; 
-            eventos[qtd_eventos].seg = ant;
-            qtd_eventos++;
+            eventos[qtd_ev].angulo = 0; eventos[qtd_ev].tipo = 0; eventos[qtd_ev].seg = ant; qtd_ev++;
+            eventos[qtd_ev].angulo = menor; eventos[qtd_ev].tipo = 1; eventos[qtd_ev].seg = ant; qtd_ev++;
+        } 
+        else {
+            double menor = (ang1 < ang2) ? ang1 : ang2;
+            double maior = (ang1 > ang2) ? ang1 : ang2;
+            eventos[qtd_ev].angulo = menor; eventos[qtd_ev].tipo = 0; eventos[qtd_ev].seg = ant; qtd_ev++;
+            eventos[qtd_ev].angulo = maior; eventos[qtd_ev].tipo = 1; eventos[qtd_ev].seg = ant; qtd_ev++;
         }
-        no = get_proximo_no(lista_com_bordas, no); 
+        no = get_proximo_no(todos_anteparos, no);
     }
-    qsort(eventos, qtd_eventos, sizeof(Evento), cmp_eventos);
-    
-    Arvore segmentos_ativos = cria_arvore(cmp_segmentos_ativos);
 
-    int i;
-    for (i = 0; i < qtd_eventos; i++) {
-        g_angulo_atual = eventos[i].angulo;
-        Anteparo seg_evento = eventos[i].seg;
+    qsort(eventos, qtd_ev, sizeof(Evento), cmp_eventos);
 
-        if (eventos[i].tipo == 0) { 
-            insere_arvore(segmentos_ativos, seg_evento);
-        } else { 
-            remove_arvore(segmentos_ativos, seg_evento);
+    Arvore ativos = cria_arvore(cmp_segmentos_ativos);
+    Anteparo ant_anterior = NULL;
+    int primeira_passada = 1;
+
+    int i = 0;
+    while (i < qtd_ev) {
+        g_angulo_atual = eventos[i].angulo; 
+
+        int j = i;
+        while (j < qtd_ev && fabs(eventos[j].angulo - g_angulo_atual) < EPSILON) {
+            if (eventos[j].tipo == 0) {
+                insere_arvore(ativos, eventos[j].seg);
+            } else {
+                remove_arvore(ativos, eventos[j].seg);
+            }
+            j++;
         }
-        
-        Anteparo mais_proximo = (Anteparo) get_menor_dado(segmentos_ativos);
 
-        if (mais_proximo != NULL) {
-            float dist = dist_intersecao_raio(mais_proximo, g_angulo_atual);
-            
-            if (dist >= infinito - 1.0) dist = MUNDO_MAX;
+        Anteparo ant_atual = (Anteparo)get_menor_dado(ativos);
 
-            float px = g_x_bomba + dist * cos(g_angulo_atual);
-            float py = g_y_bomba + dist * sin(g_angulo_atual);
-
-            insere_vertice(pol_vis, px, py);
+        if (!primeira_passada) {
+            if (ant_atual != ant_anterior) {
+                if (ant_anterior != NULL) adiciona_ponto_interseccao(pol, ant_anterior, g_angulo_atual);
+                if (ant_atual != NULL) adiciona_ponto_interseccao(pol, ant_atual, g_angulo_atual);
+            } else {
+                if (ant_atual != NULL) adiciona_ponto_interseccao(pol, ant_atual, g_angulo_atual);
+            }
+        } else {
+            if (ant_atual != NULL) adiciona_ponto_interseccao(pol, ant_atual, g_angulo_atual);
+            primeira_passada = 0;
         }
+
+        ant_anterior = ant_atual;
+        i = j;
     }
-    kill_arvore(segmentos_ativos);
+
     free(eventos);
-    free(b1); free(b2); free(b3); free(b4); 
-    kill_lista(lista_com_bordas, NULL); 
+    kill_arvore(ativos);
+    kill_lista(todos_anteparos, NULL); 
+    for(int k=0; k<4; k++) free(box[k]);
 
-    return pol_vis;
+    return pol;
 }
