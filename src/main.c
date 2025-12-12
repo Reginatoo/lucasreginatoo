@@ -60,32 +60,36 @@ int main(int argc, char* argv[]) {
     } else {
         strcpy(caminho_geo, arq_geo);
     }
-
+ler_geo(caminho_geo, lista_formas);
     printf(" Lendo arquivo GEO: %s\n", caminho_geo);
-    ler_geo(caminho_geo, lista_formas);
-
     if (lista_esta_vazia(lista_formas)) {
-        printf(" A lista de formas esta vazia. Verifique se o arquivo .geo tem conteudo.\n");
+        printf(" A lista de formas esta vazia.\n");
     } else {
-        printf(" %d formas carregadas com sucesso.\n", tamanho_lista(lista_formas));
+        printf(" %d formas carregadas.\n", tamanho_lista(lista_formas));
     }
 
     char nome_base_geo[100];
     extrair_nome_base(arq_geo, nome_base_geo);
 
-    char caminho_svg[512];
-    if (dir_saida[strlen(dir_saida)-1] == '/')
-        sprintf(caminho_svg, "%s%s.svg", dir_saida, nome_base_geo);
-    else
-        sprintf(caminho_svg, "%s/%s.svg", dir_saida, nome_base_geo);
+    char caminho_svg_base[512];
+    if (dir_saida[strlen(dir_saida)-1] == '/') 
+        sprintf(caminho_svg_base, "%s%s.svg", dir_saida, nome_base_geo);
+    else 
+        sprintf(caminho_svg_base, "%s/%s.svg", dir_saida, nome_base_geo);
+
+    printf(" Gerando SVG Base (Geo): %s\n", caminho_svg_base);
+    
+    FILE* svg = iniciar_svg(caminho_svg_base, lista_formas);
+    if (svg) {
+        desenhar_lista_formas(svg, lista_formas);
+        finalizar_svg(svg);
+    }
 
     if (arq_qry != NULL) {
         char caminho_qry[512];
-        if (dir_entrada != NULL) {
-            sprintf(caminho_qry, "%s/%s", dir_entrada, arq_qry);
-        } else {
-            strcpy(caminho_qry, arq_qry);
-        }
+        if (dir_entrada != NULL) sprintf(caminho_qry, "%s/%s", dir_entrada, arq_qry);
+        else strcpy(caminho_qry, arq_qry);
+        
         char nome_base_qry[100];
         extrair_nome_base(arq_qry, nome_base_qry);
         
@@ -93,25 +97,21 @@ int main(int argc, char* argv[]) {
         sprintf(nome_txt, "%s-%s.txt", nome_base_geo, nome_base_qry);
         
         char caminho_txt[512];
-        if (dir_saida[strlen(dir_saida)-1] == '/')
-            sprintf(caminho_txt, "%s%s", dir_saida, nome_txt);
-        else
-            sprintf(caminho_txt, "%s/%s", dir_saida, nome_txt);
+        if (dir_saida[strlen(dir_saida)-1] == '/') sprintf(caminho_txt, "%s%s", dir_saida, nome_txt);
+        else sprintf(caminho_txt, "%s/%s", dir_saida, nome_txt);
+        char nome_svg_qry[256];
+        sprintf(nome_svg_qry, "%s-%s.svg", nome_base_geo, nome_base_qry);
+        
+        char caminho_svg_qry[512];
+        if (dir_saida[strlen(dir_saida)-1] == '/') sprintf(caminho_svg_qry, "%s%s", dir_saida, nome_svg_qry);
+        else sprintf(caminho_svg_qry, "%s/%s", dir_saida, nome_svg_qry);
 
         LISTA lista_segmentos = criar_lista();
         
         printf(" Processando QRY: %s\n", caminho_qry);
-        ler_qry(caminho_qry, lista_formas, lista_segmentos, caminho_txt, caminho_svg, tipo_sort);
-        
+        printf(" Saida QRY SVG:   %s\n", caminho_svg_qry);
+        ler_qry(caminho_qry, lista_formas, lista_segmentos, caminho_txt, caminho_svg_qry, tipo_sort);
     } 
-    else {
-        printf(" Sem QRY. Gerando apenas SVG base: %s\n", caminho_svg);
-        FILE* svg = iniciar_svg(caminho_svg, lista_formas);
-        if (svg) {
-            desenhar_lista_formas(svg, lista_formas);
-            finalizar_svg(svg);
-        }
-    }
 
     printf(" Limpando memoria...\n");
 
